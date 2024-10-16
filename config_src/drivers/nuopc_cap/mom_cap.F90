@@ -91,6 +91,10 @@ use NUOPC_Model, only: model_label_SetRunClock    => label_SetRunClock
 use NUOPC_Model, only: model_label_Finalize       => label_Finalize
 use NUOPC_Model, only: SetVM
 
+#ifndef CESMCOUPLED
+  use shr_is_restart_fh_mod, only : init_is_restart_fh, is_restart_fh, write_restartfh
+#endif
+
 implicit none; private
 
 public SetServices
@@ -1641,6 +1645,7 @@ subroutine ModelAdvance(gcomp, rc)
   character(len=:), allocatable          :: rpointer_filename
   integer                                :: num_rest_files
   real(8)                                :: MPI_Wtime, timers
+  logical                                :: write_restart
   logical                                :: write_restart_eor
 
   rc = ESMF_SUCCESS
@@ -1792,12 +1797,14 @@ subroutine ModelAdvance(gcomp, rc)
     call ESMF_ClockGetAlarm(clock, alarmname='restart_alarm', alarm=restart_alarm, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
+    write_restart = .false.
     if (ESMF_AlarmIsRinging(restart_alarm, rc=rc)) then
       if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
+      write_restart = .true.
       ! turn off the alarm
       call ESMF_AlarmRingerOff(restart_alarm, rc=rc )
       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    end if
 
     write_restart_eor = .false.
     if (restart_eor) then
@@ -1809,6 +1816,11 @@ subroutine ModelAdvance(gcomp, rc)
          if (ChkErr(rc,__LINE__,u_FILE_u)) return
        end if
     end if
+
+#ifndef CESMCOUPLED
+    write_restartfh = is_restart_fh(clock)
+    if (write_restartfh) write_restart = .true.
+#endif
 
     if (write_restart .or. write_restart_eor) then
       ! determine restart filename
@@ -1923,6 +1935,7 @@ subroutine ModelSetRunClock(gcomp, rc)
   character(len=256)       :: restart_option ! Restart option units
   integer                  :: restart_n      ! Number until restart interval
   integer                  :: restart_ymd    ! Restart date (YYYYMMDD)
+  integer                  :: dt_cpl
   type(ESMF_Alarm)         :: restart_alarm
   type(ESMF_Alarm)         :: stop_alarm
   logical                  :: isPresent, isSet
@@ -2042,6 +2055,9 @@ subroutine ModelSetRunClock(gcomp, rc)
           call ESMF_LogWrite(subname//" Restarts will be written at finalize only", ESMF_LOGMSG_INFO)
         endif
       endif
+      call ESMF_TimeIntervalGet(dtimestep, s=dt_cpl, rc=rc)
+      if (ChkErr(rc,__LINE__,u_FILE_u)) return
+      call init_is_restart_fh(mcurrTime, dt_cpl, is_root_pe())
     endif
 
     if (restart_mode == 'alarms') then
