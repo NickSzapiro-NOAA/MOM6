@@ -92,7 +92,7 @@ use NUOPC_Model, only: model_label_Finalize       => label_Finalize
 use NUOPC_Model, only: SetVM
 
 #ifndef CESMCOUPLED
-  use shr_is_restart_fh_mod, only : init_is_restart_fh, is_restart_fh, write_restartfh
+  use shr_is_restart_fh_mod, only : init_is_restart_fh, is_restart_fh, is_restart_fh_type
 #endif
 
 implicit none; private
@@ -154,6 +154,7 @@ type(ESMF_GeomType_Flag) :: geomtype = ESMF_GEOMTYPE_MESH
 #else
 logical :: cesm_coupled = .false.
 type(ESMF_GeomType_Flag) :: geomtype
+type(is_restart_fh_type) :: restartfh_info     ! For flexible restarts in UFS
 #endif
 character(len=8)  :: restart_mode = 'alarms'
 character(len=16) :: inst_suffix = ''
@@ -1645,7 +1646,7 @@ subroutine ModelAdvance(gcomp, rc)
   character(len=:), allocatable          :: rpointer_filename
   integer                                :: num_rest_files
   real(8)                                :: MPI_Wtime, timers
-  logical                                :: write_restart
+  logical                                :: write_restart, write_restartfh
   logical                                :: write_restart_eor
 
   rc = ESMF_SUCCESS
@@ -1818,7 +1819,7 @@ subroutine ModelAdvance(gcomp, rc)
     end if
 
 #ifndef CESMCOUPLED
-    write_restartfh = is_restart_fh(clock)
+    call is_restart_fh(clock, restartfh_info, write_restartfh)
     if (write_restartfh) write_restart = .true.
 #endif
 
@@ -2057,7 +2058,7 @@ subroutine ModelSetRunClock(gcomp, rc)
       endif
       call ESMF_TimeIntervalGet(dtimestep, s=dt_cpl, rc=rc)
       if (ChkErr(rc,__LINE__,u_FILE_u)) return
-      call init_is_restart_fh(mcurrTime, dt_cpl, is_root_pe())
+      call init_is_restart_fh(mcurrTime, dt_cpl, is_root_pe(), restartfh_info)
     endif
 
     if (restart_mode == 'alarms') then
