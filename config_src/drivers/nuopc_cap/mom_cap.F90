@@ -2147,9 +2147,7 @@ subroutine ModelSetRunClock(gcomp, rc)
         endif
       endif
 #ifndef CESMCOUPLED
-      call ESMF_TimeIntervalGet(dtimestep, s=dt_cpl, rc=rc)
-      if (ChkErr(rc,__LINE__,u_FILE_u)) return
-      call init_is_restart_fh(mcurrTime, dt_cpl, is_root_pe(), restartfh_info)
+      call init_is_restart_fh(mclock, is_root_pe(), restartfh_info)
 #endif
     endif
 
